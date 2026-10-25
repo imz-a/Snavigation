@@ -13,7 +13,7 @@
           >
             <n-grid-item
               v-for="item in shortcutData"
-              :key="item"
+              :key="item.id"
               class="shortcut-item"
               @contextmenu="shortCutContextmenu($event, item)"
               @click="shortCutJump(item.url)"
@@ -51,7 +51,12 @@
         <span class="btnName">下载</span>
       </div>
       <div class="footer__btn" @click="clickFileDom">
-        <input type="file" name="上传" id="shortCutUploadInput" />
+        <input
+          type="file"
+          id="shortCutUploadInput"
+          accept=".html,.htm,text/html"
+          @change="uploadHtmlFile"
+        />
         <SvgIcon iconName="icon-shangchuan" />
         <span class="btnName">上传</span>
       </div>
@@ -139,7 +144,6 @@ import { storeToRefs } from "pinia";
 import { siteStore, setStore } from "@/stores";
 import SvgIcon from "@/components/SvgIcon.vue";
 import identifyInput from "@/utils/identifyInput";
-import { onMounted, onBeforeUnmount } from "vue";
 
 const set = setStore();
 const site = siteStore();
@@ -342,7 +346,6 @@ const shortCutJump = (url) => {
   }
 };
 
-
 // download start
 // 点击按钮进行下载html文件
 function downloadHtmlFile() {
@@ -386,52 +389,60 @@ function downloadHtmlFile() {
 // download end
 
 // upload start
-// 点击按钮上传文件思路
-// 1.使用 <input type="file"/> 元素，可以方便地获取文件。
-// 2.监听input的change事件，把input元素隐藏起来
-// 3.点击上传按钮时，去触发input的点击事件
-// 4.通过触发 input 的 change 事件，解析获取到的文件信息
-onMounted(() => {
-  // 通过触发 input 的 change 事件，解析获取到的文件信息
-  document.querySelector("#shortCutUploadInput")?.addEventListener("change", uploadHtmlFile);
-});
-onBeforeUnmount(() => {
-  document.querySelector("#shortCutUploadInput")?.removeEventListener("change", uploadHtmlFile);
-});
-
-function uploadHtmlFile() {
-  if (this.files) {
-    const fileReader = new FileReader();
-    fileReader.readAsText(this.files[0]);
-    fileReader.onload = function () {
-      if (typeof fileReader.result === "string") {
-        parserBookmarksFile(fileReader.result);
+// 上传思路
+// 1.使用 <input type="file"/> 元素获取文件（隐藏，由按钮触发点击）
+// 2.通过 input 的 change 事件拿到文件并读取为文本
+// 3.解析书签文件里的 <a> 标签，批量导入捷径
+function uploadHtmlFile(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+  if (!file) return;
+  const fileReader = new FileReader();
+  fileReader.readAsText(file);
+  fileReader.onload = () => {
+    if (typeof fileReader.result === "string") {
+      const count = parserBookmarksFile(fileReader.result);
+      if (count > 0) {
+        $message.success(`已导入 ${count} 个捷径`);
+      } else {
+        $message.warning("未解析到新的捷径，可能全部重复或文件格式不支持");
       }
-    };
-  }
+    }
+    // 清空 value，允许重复选择同一个文件
+    input.value = "";
+  };
 }
 
 function parserBookmarksFile(result) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(result, "text/html");
-  // 获取所有A标签
+  // 获取所有 A 标签
   const aElements = doc.querySelectorAll("a");
-  // 先处理H3元素，构建初始类别
+  // 需要保证 ID 唯一，从当前最大 ID 之后开始自增
+  let nextId = shortcutData.value.reduce((max, item) => (item.id > max ? item.id : max), -1) + 1;
+  let count = 0;
   aElements.forEach((a) => {
+    const name = a.textContent?.trim();
+    const url = a.getAttribute("href")?.trim();
+    // 跳过没有名称或链接的节点
+    if (!name || !url) {
+      return;
+    }
     // 判断重复
-    const isDuplicate = shortcutData.value?.some(
-      (item) => item.name === a.textContent || item.url === a.href,
-    );
+    const isDuplicate = shortcutData.value?.some((item) => item.name === name || item.url === url);
     if (isDuplicate) {
       return;
     }
     // 添加数据
     shortcutData.value.push({
-      id: shortcutData.length,
-      name: a.textContent,
-      url: a.href,
+      id: nextId,
+      name,
+      url,
     });
+    nextId += 1;
+    count += 1;
   });
+  return count;
 }
 // 上传文件
 function clickFileDom() {
@@ -444,8 +455,6 @@ function clickFileDom() {
   }
 }
 // upload end
-
-
 </script>
 
 <style lang="scss" scoped>
@@ -511,13 +520,25 @@ function clickFileDom() {
     padding-left: 20px;
     .footer__btn {
       border-radius: 8px;
-      width: 80px;
+      min-width: 80px;
       height: 40px;
+      padding: 0 12px;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       background-color: var(--main-background-light-color);
-      line-height: 40px;
-      text-align: center;
       cursor: pointer;
       font-size: 16px;
+      transition: background-color 0.3s;
+      .i-icon {
+        width: 1rem;
+        font-size: 18px;
+      }
+      &:hover {
+        background-color: var(--main-background-hover-color);
+      }
     }
     #shortCutUploadInput {
       display: none;
