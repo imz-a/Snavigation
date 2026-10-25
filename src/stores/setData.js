@@ -37,6 +37,10 @@ const useSetDataStore = defineStore("setData", {
       use12HourFormat: false,
       // 天气显示
       showWeather: true,
+      // 天气城市（留空则按 IP 自动定位）
+      weatherCity: "",
+      weatherAdcode: "",
+      weatherCenter: "",
       // 是否显示搜索建议
       showSuggestions: true,
       // 跳转方式

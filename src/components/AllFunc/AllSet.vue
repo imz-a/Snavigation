@@ -128,6 +128,32 @@
           </n-card>
           <n-card class="set-item">
             <div class="name">
+              <span class="title">天气城市</span>
+              <span class="tip">留空则按 IP 自动定位，定位不准时可手填城市名后回车或点保存</span>
+            </div>
+            <n-input
+              class="set"
+              size="small"
+              clearable
+              v-model:value="weatherCityInput"
+              placeholder="如：杭州"
+              @keyup.enter="saveWeatherCity"
+            >
+              <template #suffix>
+                <n-button
+                  text
+                  type="primary"
+                  size="tiny"
+                  :loading="weatherCitySaving"
+                  @click.stop="saveWeatherCity"
+                >
+                  保存
+                </n-button>
+              </template>
+            </n-input>
+          </n-card>
+          <n-card class="set-item">
+            <div class="name">
               <span class="title">时钟样式</span>
               <span class="tip">选择一种时钟样式</span>
             </div>
@@ -264,6 +290,7 @@ import {
 import { storeToRefs } from "pinia";
 import { setStore, statusStore } from "@/stores";
 import identifyInput from "@/utils/identifyInput";
+import { resolveCity } from "@/utils/weather";
 
 const set = setStore();
 const status = statusStore();
@@ -288,6 +315,47 @@ const {
 const recoverRef = ref(null);
 const customCoverModal = ref(false);
 const customCoverUrl = ref("");
+
+// 天气城市
+const weatherCityInput = ref(set.weatherCity || "");
+const weatherCitySaving = ref(false);
+
+// 保存天气城市（留空则恢复自动定位）
+const saveWeatherCity = async () => {
+  const keyword = weatherCityInput.value?.trim();
+  if (!keyword) {
+    set.weatherCity = "";
+    set.weatherAdcode = "";
+    set.weatherCenter = "";
+    localStorage.removeItem("lastWeatherData");
+    $message.success("已改为自动定位，刷新后生效");
+    return;
+  }
+  if (keyword === set.weatherCity && set.weatherAdcode) {
+    $message.info("天气城市未变化");
+    return;
+  }
+  weatherCitySaving.value = true;
+  try {
+    const result = await resolveCity(import.meta.env.VITE_WEATHER_KEY, keyword);
+    if (!result) {
+      $message.error("没有找到这个城市，换个城市名试试");
+      return;
+    }
+    set.weatherCity = result.name;
+    set.weatherAdcode = result.adcode;
+    set.weatherCenter = result.center ? `${result.center.lng},${result.center.lat}` : "";
+    weatherCityInput.value = result.name;
+    // 清掉旧缓存，让首页重新拉取
+    localStorage.removeItem("lastWeatherData");
+    $message.success(`天气城市已设为${result.name}，刷新后生效`);
+  } catch (error) {
+    console.error("天气城市查询失败：", error);
+    $message.error("城市查询失败，请稍后重试");
+  } finally {
+    weatherCitySaving.value = false;
+  }
+};
 
 // 壁纸类别
 // value 与 stores/setData.js 中的 backgroundType 一一对应
