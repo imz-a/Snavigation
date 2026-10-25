@@ -7,7 +7,7 @@
       :src="bgUrl"
       :style="{ '--blur': set.backgroundBlur + 'px' }"
       @load="imgLoadComplete"
-      @error.once="imgLoadError"
+      @error="imgLoadError"
       @animationend="imgAnimationEnd"
     />
     <Transition name="fade">
@@ -29,32 +29,43 @@ const emit = defineEmits(["loadComplete"]);
 // 壁纸随机数
 // 请依据文件夹内的图片个数修改 Math.random() 后面的第一个数字
 const bgRandom = Math.floor(Math.random() * 3 + 1);
+// 本地壁纸：所有远程壁纸的最终兜底，保证首屏一定有图
+const localBgUrl = `/background/bg${bgRandom}.jpg`;
+
+// 壁纸候选列表：按顺序尝试，前一个加载失败自动切换下一个，最后回退到本地壁纸
+const getBgCandidates = () => {
+  switch (set.backgroundType) {
+    case 1:
+      // 必应每日一图（镜像依次兜底，原 api.dujin.org 已失效）
+      return [
+        "https://api.qqsuu.cn/api/dm-bing",
+        "https://api.yujn.cn/api/bing.php",
+        "https://api.suyanw.cn/api/bing.php",
+        localBgUrl,
+      ];
+    case 2:
+      // 随机风景（原 api.aixiaowai.cn 已失效）
+      return ["https://www.loliapi.com/bg/", localBgUrl];
+    case 3:
+      // 随机二次元（原 api.aixiaowai.cn 已失效）
+      return ["https://www.loliapi.com/acg/pc/", localBgUrl];
+    case 4:
+      return set.backgroundCustom ? [set.backgroundCustom, localBgUrl] : [localBgUrl];
+    default:
+      return [localBgUrl];
+  }
+};
+
+const bgCandidates = ref([]);
+const bgIndex = ref(0);
+const isLocalFallback = ref(false);
 
 // 赋值壁纸
 const setBgUrl = () => {
-  const { backgroundType } = set;
-  switch (backgroundType) {
-    case 0:
-      bgUrl.value = `/background/bg${bgRandom}.jpg`;
-      break;
-    case 1: {
-      const isMobile = window.innerWidth < 768;
-      bgUrl.value = `https://api.dujin.org/bing/${isMobile ? "m" : "1920"}.php`;
-      break;
-    }
-    case 2:
-      bgUrl.value = "https://api.aixiaowai.cn/gqapi/gqapi.php";
-      break;
-    case 3:
-      bgUrl.value = "https://api.aixiaowai.cn/api/api.php";
-      break;
-    case 4:
-      bgUrl.value = set.backgroundCustom;
-      break;
-    default:
-      bgUrl.value = `/background/bg${bgRandom}.jpg`;
-      break;
-  }
+  bgCandidates.value = getBgCandidates();
+  bgIndex.value = 0;
+  isLocalFallback.value = bgCandidates.value.length === 1 && bgCandidates.value[0] === localBgUrl;
+  bgUrl.value = bgCandidates.value[0];
 };
 
 // 图片加载完成
@@ -76,9 +87,23 @@ const imgAnimationEnd = () => {
 
 // 图片显示失败
 const imgLoadError = () => {
+  if (isLocalFallback.value) {
+    // 本地壁纸也加载失败，不再重试
+    console.error("本地壁纸加载失败：", bgUrl.value);
+    return;
+  }
+  const nextIndex = bgIndex.value + 1;
+  if (nextIndex < bgCandidates.value.length) {
+    console.warn("壁纸加载失败，尝试备用源：", bgUrl.value);
+    bgIndex.value = nextIndex;
+    bgUrl.value = bgCandidates.value[nextIndex];
+    isLocalFallback.value = bgUrl.value === localBgUrl;
+    return;
+  }
   console.error("壁纸加载失败：", bgUrl.value);
   $message.error("壁纸加载失败，已临时切换回默认");
-  bgUrl.value = `/background/bg${bgRandom}.jpg`;
+  bgUrl.value = localBgUrl;
+  isLocalFallback.value = true;
 };
 
 onMounted(() => {

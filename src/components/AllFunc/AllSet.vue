@@ -50,12 +50,12 @@
               :y-gap="16"
             >
               <n-grid-item
-                v-for="(item, index) in backgroundTypeArr"
-                :key="index"
-                :class="index === backgroundType ? 'item check' : 'item'"
-                @click="changeBackground(index)"
+                v-for="item in backgroundTypeArr"
+                :key="item.value"
+                :class="item.value === backgroundType ? 'item check' : 'item'"
+                @click="changeBackground(item.value)"
               >
-                <span class="name" v-html="item.name" />
+                <span class="name">{{ item.name }}</span>
               </n-grid-item>
             </n-grid>
           </n-card>
@@ -290,11 +290,12 @@ const customCoverModal = ref(false);
 const customCoverUrl = ref("");
 
 // 壁纸类别
+// value 与 stores/setData.js 中的 backgroundType 一一对应
 const backgroundTypeArr = [
-  { name: "本地默认", tip: "默认壁纸，随机更换" },
-  { name: "每日必应", tip: "必应每日一图，每天更新" },
-  { name: "随机风景", tip: "随机风景图，随机更换" },
-  { name: "随机动漫", tip: "随机二次元图，随机更换" },
+  { value: 0, name: "本地默认", tip: "默认壁纸，随机更换" },
+  { value: 1, name: "每日必应", tip: "必应每日一图，每天更新" },
+  { value: 2, name: "随机风景", tip: "随机风景图，随机更换" },
+  { value: 3, name: "随机动漫", tip: "随机二次元图，随机更换" },
 ];
 
 // 主题类别
@@ -325,7 +326,8 @@ const changeBackground = (type, reset = false) => {
     return true;
   }
   backgroundType.value = type;
-  $message.success(`已切换为${backgroundTypeArr[type].name}，刷新后生效`);
+  const target = backgroundTypeArr.find((item) => item.value === type);
+  $message.success(`已切换为${target ? target.name : "自定义壁纸"}，刷新后生效`);
 };
 
 // 链接跳转方式
